@@ -42,15 +42,17 @@ func (m Model) Init() tea.Cmd {
 	return m.home.Init()
 }
 
+// TODO
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg.(type) {
 	case tea.WindowSizeMsg:
 
 	case views.LoginSuccessMsg:
 
-	case views.HomeRegisterSelectedMsg:
+	case views.RegisterSelectedMsg:
 
-	case views.HomeLoginSelectedMsg:
+	case views.LoginSelectedMsg:
 
 	}
+	return nil
 }
