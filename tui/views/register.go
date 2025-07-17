@@ -7,6 +7,7 @@ import (
 	"Drop-Key-TUI/api"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -21,7 +22,7 @@ const (
 type RegisterModel struct {
 	CurrentState  State
 	List          list.Model
-	Inputs        []string
+	Inputs        textinput.Model
 	statusMessage string
 	err           error
 	width         int
@@ -45,6 +46,7 @@ func (m *RegisterModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	m.List.SetSize(width-4, height-4)
+	m.Inputs.Width = width - 4
 }
 
 func (i item) Title() string       { return i.title }
@@ -63,9 +65,14 @@ func NewRegisterModel() *RegisterModel {
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("218"))
 
+	ti := textinput.New()
+	ti.Placeholder = "Enter file location"
+	ti.Focus()
+
 	return &RegisterModel{
 		CurrentState: selectingMethod,
 		List:         l,
+		Inputs:       ti,
 	}
 }
 
@@ -90,7 +97,6 @@ func (m *RegisterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, m.generateKeyCmd()
 				} else {
 					m.CurrentState = enterKeyFile
-					m.Inputs = []string{""}
 					return m, nil
 				}
 			case enterKeyFile:
@@ -121,12 +127,19 @@ func (m *RegisterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	var cmds []tea.Cmd
 	m.List, cmd = m.List.Update(msg)
-	return m, cmd
+	cmds = append(cmds, cmd)
+	m.Inputs, cmd = m.Inputs.Update(msg)
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
 }
 
 func (m *RegisterModel) View() string {
 	var b strings.Builder
+
+	m.Inputs.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	m.Inputs.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("229"))
 
 	switch m.CurrentState {
 	case selectingMethod:
@@ -136,7 +149,7 @@ func (m *RegisterModel) View() string {
 		b.WriteString("Generating key pair...\n")
 	case enterKeyFile:
 		b.WriteString("Enter path to private key file: \n")
-		b.WriteString(strings.Join(m.Inputs, "\n"))
+		b.WriteString(m.Inputs.View() + "\n")
 		b.WriteString("\nPress Enter to submit, Ctrl+C to quit")
 	case registering:
 		b.WriteString("Registering...\n")
