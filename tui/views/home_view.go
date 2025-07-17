@@ -1,20 +1,19 @@
 package views
 
 import (
-	"fmt"
-	"os"
-
 	"Drop-Key-TUI/tui/styles"
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/common-nighthawk/go-figure"
 )
 
 type HomeModel struct {
 	quitting bool
 	choices  []string
 	cursor   int
+	height   int
+	width    int
 	err      error
 }
 
@@ -31,8 +30,13 @@ var quitKeys = key.NewBinding(
 	key.WithHelp("", "press q to quit"),
 )
 
-func New() HomeModel {
-	return HomeModel{
+func (m *HomeModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+}
+
+func NewHomeModel() *HomeModel {
+	return &HomeModel{
 		choices: []string{"Register", "Login"},
 		cursor:  0,
 	}
@@ -66,8 +70,11 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return LoginSelectedMsg{}
 				}
 			}
-
 		}
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 	case errMsg:
 		m.err = msg
 		return m, nil
@@ -76,31 +83,41 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m HomeModel) View() string {
+func (m *HomeModel) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
+	myFigure := figure.NewFigure("DropKey", "banner3-D", true)
+	title := styles.HeadingStyle.Render(myFigure.String())
+	loginBtn := styles.ButtonStyle.MarginLeft(1).Render("Login")
+	activeLoginBtn := styles.ActiveButtonStyle.MarginLeft(1).Render("Login")
+	registerBtn := styles.ButtonStyle.Render("Register")
+	activeRegisterBtn := styles.ActiveButtonStyle.Render("Register")
 
-	title := styles.HeadingStyle.Render("DropKey")
-	loginButton := styles.ButtonStyle.Render("Login")
-	activeLoginButton := styles.ActiveButtonStyle.Render("Login")
-	registerButton := styles.ButtonStyle.Render("Register")
-	activeRegisterButton := styles.ActiveButtonStyle.Render("Register")
-
-	var homeView string
+	var buttons string
 	if m.cursor == 0 {
-		homeView = lipgloss.JoinVertical(lipgloss.Center, title, "\n", activeLoginButton, registerButton)
+		buttons = lipgloss.JoinVertical(lipgloss.Left, activeLoginBtn, registerBtn)
 	} else {
-		homeView = lipgloss.JoinVertical(lipgloss.Center, title, "\n", loginButton, activeRegisterButton)
+		buttons = lipgloss.JoinVertical(lipgloss.Left, loginBtn, activeRegisterBtn)
 	}
 
-	return homeView
-}
+	content := lipgloss.JoinVertical(
+		lipgloss.Center,
+		title,
+		"",
+		buttons,
+	)
 
-func main() {
-	p := tea.NewProgram(&HomeModel{})
-	if _, err := p.Run(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	appStyle := styles.AppStyle.Height(m.height - 4).Width(m.width - 2)
+
+	ui := appStyle.Render(
+		lipgloss.Place(
+			m.width,
+			m.height-4,
+			lipgloss.Center,
+			lipgloss.Center,
+			content,
+		),
+	)
+	return ui
 }

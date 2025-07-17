@@ -26,6 +26,8 @@ type Model struct {
 	CurrentState  State
 	Spinner       spinner.Model
 	statusMessage string
+	width         int
+	height        int
 	err           error
 }
 
@@ -38,10 +40,15 @@ type AuthErrorMsg struct {
 	err error
 }
 
-func NewLoginMethod() Model {
+func (m *Model) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+}
+
+func NewLoginModel() *Model {
 	s := spinner.New()
 	s.Spinner = spinner.Monkey
-	return Model{
+	return &Model{
 		CurrentState: authenticating,
 		Spinner:      s,
 	}

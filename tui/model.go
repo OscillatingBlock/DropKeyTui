@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"Drop-Key-TUI/api"
 	"Drop-Key-TUI/config"
 	"Drop-Key-TUI/tui/views"
 
@@ -16,43 +17,72 @@ const (
 	loggedInView
 )
 
+type ResizableModel interface {
+	tea.Model
+	SetSize(width, height int)
+}
+
 type Model struct {
 	state  viewState
-	login  views.Model
 	width  int
 	height int
 	err    error
-	home   views.HomeModel
 	token  string
 	config *config.Config
+	user   api.User
 
-	// TODO add other models also
+	views map[viewState]ResizableModel
 }
 
-func New() Model {
-	model := Model{
-		login: views.NewLoginMethod(),
+func New() *Model {
+	home := views.NewHomeModel()
+	login := views.NewLoginModel()
+
+	return &Model{
 		state: homeView,
+		views: map[viewState]ResizableModel{
+			homeView:  home,
+			loginView: login,
+			// TODO Add other views
+		},
 	}
-
-	return model
 }
 
-func (m Model) Init() tea.Cmd {
-	return m.home.Init()
+func (m *Model) Init() tea.Cmd {
+	return m.views[m.state].Init()
 }
 
 // TODO
-func (m *Model) Update(msg tea.Msg) tea.Cmd {
-	switch msg.(type) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-
-	case views.LoginSuccessMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.views[m.state].SetSize(msg.Width, msg.Height)
 
 	case views.RegisterSelectedMsg:
+		m.state = registrationView
+		return m, m.views[registrationView].Init()
 
 	case views.LoginSelectedMsg:
+		m.state = loginView
+		return m, m.views[loginView].Init()
 
+	case views.LoginSuccessMsg:
+		m.token = msg.Token
+		m.user = msg.User
+		m.state = loggedInView
+		return m, m.views[loggedInView].Init()
 	}
-	return nil
+	// Always forward the message to the currently active view
+	updatedView, cmd := m.views[m.state].Update(msg)
+
+	// Store the updated model (in case it changed internal state)
+	m.views[m.state] = updatedView.(ResizableModel)
+
+	return m, cmd
+}
+
+func (m *Model) View() string {
+	return m.views[m.state].View()
 }

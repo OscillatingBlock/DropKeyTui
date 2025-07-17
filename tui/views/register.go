@@ -91,7 +91,8 @@ func (m *RegisterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case enterKeyFile:
 				m.CurrentState = registering
-				return m, m.registerWithFileCmd()
+				/* return m, m.registerWithFileCmd() */
+				return m, nil
 			}
 		case "up", "k":
 			m.List.CursorUp()
@@ -153,5 +154,7 @@ func (m *RegisterModel) generateKeyCmd() tea.Cmd {
 		// 5 in register.go call api to register user with the pubkey
 		// if succesfull return msg to main
 		// else return failure msg
+
+		return nil
 	}
 }
