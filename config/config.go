@@ -11,7 +11,6 @@ import (
 )
 
 type Config struct {
-	UserID     string `json:"user_id"`
 	PublicKey  string `json:"public_key"`
 	PrivateKey string `json:"private_key"`
 }
@@ -61,7 +60,7 @@ func Load() (*Config, error) {
 }
 
 func Save(config *Config) error {
-	if config.UserID == "" || config.PublicKey == "" || config.PrivateKey == "" {
+	if config.PublicKey == "" || config.PrivateKey == "" {
 		return errors.New("cannot save incomplete config")
 	}
 
