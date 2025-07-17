@@ -34,8 +34,6 @@ type LoginSuccessMsg struct {
 	User  api.User
 }
 
-type RegesitrationCompletedMsg struct{}
-
 type AuthErrorMsg struct {
 	err error
 }
@@ -62,6 +60,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		}
+
+	case api.ErrMsg:
+		m.CurrentState = err
+		m.err = msg
+		return m, nil
+
 	case api.AuthResponse:
 		m.CurrentState = done
 		config, err := config.Load()
@@ -72,8 +76,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		successMsg := LoginSuccessMsg{
 			Token: msg.Token,
+			// TODO  send id field also in User
 			User: api.User{
-				ID:        config.UserID,
 				PublicKey: config.PublicKey,
 			},
 		}
@@ -123,7 +127,6 @@ func (m *Model) authCmd() tea.Cmd {
 	signatureB64 := base64.StdEncoding.EncodeToString(signatureBytes)
 
 	authCmd := api.AuthenticateUser(api.AuthRequest{
-		ID:        config.UserID,
 		PublicKey: config.PublicKey,
 		Signature: signatureB64,
 		Challenge: challengeB64,
