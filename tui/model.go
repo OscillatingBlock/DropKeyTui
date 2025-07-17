@@ -37,12 +37,15 @@ type Model struct {
 func New() *Model {
 	home := views.NewHomeModel()
 	login := views.NewLoginModel()
+	register := views.NewRegisterModel()
 
 	return &Model{
 		state: homeView,
 		views: map[viewState]ResizableModel{
-			homeView:  home,
-			loginView: login,
+			homeView:         home,
+			registrationView: register,
+			loginView:        login,
+
 			// TODO Add other views
 		},
 	}
@@ -62,6 +65,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case views.RegisterSelectedMsg:
 		m.state = registrationView
+		m.views[registrationView].SetSize(m.width, m.height)
 		return m, m.views[registrationView].Init()
 
 	case views.LoginSelectedMsg:

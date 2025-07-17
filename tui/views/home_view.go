@@ -63,11 +63,11 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.cursor == 0 {
 				return m, func() tea.Msg {
-					return RegisterSelectedMsg{}
+					return LoginSelectedMsg{}
 				}
 			} else {
 				return m, func() tea.Msg {
-					return LoginSelectedMsg{}
+					return RegisterSelectedMsg{}
 				}
 			}
 		}

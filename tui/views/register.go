@@ -11,23 +11,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type readyToRegister string
-
-type RegisterState string
-
 const (
-	selectingMethod RegisterState = "selecting method"
-	generatingKey   RegisterState = "generating key"
-	enterKeyFile    RegisterState = "enter key file"
-	registering     RegisterState = "registering"
+	selectingMethod State = "selecting method"
+	generatingKey   State = "generating key"
+	enterKeyFile    State = "enter key file"
+	registering     State = "registering"
 )
 
 type RegisterModel struct {
-	CurrentState  RegisterState
+	CurrentState  State
 	List          list.Model
 	Inputs        []string
 	statusMessage string
 	err           error
+	width         int
+	height        int
 	user          api.User
 }
 
@@ -43,11 +41,17 @@ type item struct {
 	title, desc string
 }
 
+func (m *RegisterModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	m.List.SetSize(width-4, height-4)
+}
+
 func (i item) Title() string       { return i.title }
 func (i item) Description() string { return i.desc }
 func (i item) FilterValue() string { return i.title }
 
-func NewRegisterModel() RegisterModel {
+func NewRegisterModel() *RegisterModel {
 	items := []list.Item{
 		item{title: "Generate a new key pair (recommended)", desc: "Creates a new secure key pair for you."},
 		item{title: "Use an existing private key file", desc: "Import an existing private key file."},
@@ -57,15 +61,15 @@ func NewRegisterModel() RegisterModel {
 	l.Title = "How would you like to set up your account?"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
-	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00FF00"))
+	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("218"))
 
-	return RegisterModel{
+	return &RegisterModel{
 		CurrentState: selectingMethod,
 		List:         l,
 	}
 }
 
-func (m RegisterModel) Init() tea.Cmd {
+func (m *RegisterModel) Init() tea.Cmd {
 	return nil
 }
 
@@ -101,14 +105,16 @@ func (m *RegisterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.List.CursorDown()
 			return m, nil
 		}
+
 	case api.RegisterUserResponse:
-		m.CurrentState = RegisterState(done)
+		m.CurrentState = done
 		m.statusMessage = fmt.Sprintf("Registration successful. User ID: %s", m.user.ID)
 		return m, func() tea.Msg {
 			return RegistrationSuccessMsg{ID: msg.ID}
 		}
+
 	case RegistrationErrorMsg:
-		m.CurrentState = RegisterState(err)
+		m.CurrentState = err
 		m.err = msg.err
 		m.statusMessage = fmt.Sprintf("Registration failed: %v", m.err)
 		m.CurrentState = selectingMethod
@@ -134,9 +140,9 @@ func (m *RegisterModel) View() string {
 		b.WriteString("\nPress Enter to submit, Ctrl+C to quit")
 	case registering:
 		b.WriteString("Registering...\n")
-	case RegisterState(err):
+	case err:
 		b.WriteString(m.statusMessage + "\n\nPress Enter to retry or Ctrl+C to quit")
-	case RegisterState(done):
+	case done:
 		b.WriteString(m.statusMessage + "\n\nPress Ctrl+C to quit")
 	}
 
