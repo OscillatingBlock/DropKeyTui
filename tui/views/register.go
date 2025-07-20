@@ -1,10 +1,19 @@
 package views
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
+	"os"
 	"strings"
 
 	"Drop-Key-TUI/api"
+	"Drop-Key-TUI/config"
+	"Drop-Key-TUI/tui/styles"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -15,19 +24,22 @@ import (
 const (
 	selectingMethod State = "selecting method"
 	generatingKey   State = "generating key"
+	fetchingKeys    State = "fetching keys"
 	enterKeyFile    State = "enter key file"
 	registering     State = "registering"
+	redirectToLogin State = "redirecting to login"
 )
 
 type RegisterModel struct {
 	CurrentState  State
 	List          list.Model
-	Inputs        textinput.Model
+	ti            textinput.Model
 	statusMessage string
 	err           error
 	width         int
 	height        int
 	user          api.User
+	ID            string
 }
 
 type RegistrationSuccessMsg struct {
@@ -38,15 +50,28 @@ type RegistrationErrorMsg struct {
 	err error
 }
 
+type KeysGenerated struct {
+	PublicKey string
+}
+
+type FetchedKeys struct {
+	PublicKey  string `json:"public_key"`
+	PrivateKey string `json:"private_key"`
+}
+
 type item struct {
 	title, desc string
+}
+
+type waitingToRedirect struct {
+	id string
 }
 
 func (m *RegisterModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
-	m.List.SetSize(width-4, height-4)
-	m.Inputs.Width = width - 4
+	m.List.SetSize(width-8, height-5)
+	m.ti.Width = width - 10
 }
 
 func (i item) Title() string       { return i.title }
@@ -66,13 +91,13 @@ func NewRegisterModel() *RegisterModel {
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("218"))
 
 	ti := textinput.New()
-	ti.Placeholder = "Enter file location"
+	ti.Placeholder = "Enter file location..."
 	ti.Focus()
 
 	return &RegisterModel{
 		CurrentState: selectingMethod,
 		List:         l,
-		Inputs:       ti,
+		ti:           ti,
 	}
 }
 
@@ -81,65 +106,109 @@ func (m *RegisterModel) Init() tea.Cmd {
 }
 
 func (m *RegisterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
+		// Global quit key handling
+		if msg.String() == "ctrl+c" || msg.String() == "esc" {
 			return m, tea.Quit
-		case "enter":
-			switch m.CurrentState {
-			case selectingMethod:
+		}
+
+		switch m.CurrentState {
+
+		case selectingMethod:
+			switch msg.String() {
+			case "up", "k":
+				m.List.CursorUp()
+			case "down", "j":
+				m.List.CursorDown()
+			case "enter":
 				selected := m.List.SelectedItem().(item)
 				if selected.title == "Generate a new key pair (recommended)" {
 					m.CurrentState = generatingKey
 					return m, m.generateKeyCmd()
-				} else {
-					m.CurrentState = enterKeyFile
-					return m, nil
 				}
-			case enterKeyFile:
-				m.CurrentState = registering
-				/* return m, m.registerWithFileCmd() */
+				if selected.title == "Use an existing private key file" {
+					m.CurrentState = enterKeyFile
+				}
+
+			}
+			return m, nil // prevent falling through
+
+		case enterKeyFile:
+			if msg.String() == "enter" {
+				m.CurrentState = fetchingKeys
+				return m, m.LoadKeys(m.ti.Value())
+			}
+
+		case err:
+			if msg.String() == "enter" {
+				m.CurrentState = selectingMethod
 				return m, nil
 			}
-		case "up", "k":
-			m.List.CursorUp()
-			return m, nil
-		case "down", "j":
-			m.List.CursorDown()
-			return m, nil
+
+		case done:
+			if m.CurrentState == done {
+				return m, func() tea.Msg {
+					return RegistrationSuccessMsg{ID: m.ID}
+				}
+			}
 		}
+	}
+
+	// Only update components relevant to the current state
+	var cmds []tea.Cmd
+
+	if m.CurrentState == selectingMethod {
+		var cmd tea.Cmd
+		m.List, cmd = m.List.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	if m.CurrentState == enterKeyFile {
+		var cmd tea.Cmd
+		m.ti, cmd = m.ti.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	// Handle custom messages
+	switch msg := msg.(type) {
+	case KeysGenerated:
+		m.CurrentState = registering
+		m.statusMessage = "generated PublicKey = " + msg.PublicKey
+		return m, registerUser()
+
+	case FetchedKeys:
+		m.CurrentState = registering
+		m.statusMessage = "Fetched Public Key successfully, Registering user"
+		return m, registerWithFetchedKey(msg.PublicKey)
 
 	case api.RegisterUserResponse:
 		m.CurrentState = done
-		m.statusMessage = fmt.Sprintf("Registration successful. User ID: %s", m.user.ID)
-		return m, func() tea.Msg {
-			return RegistrationSuccessMsg{ID: msg.ID}
-		}
+		m.statusMessage = fmt.Sprintf("Registration successful. User ID: %s", msg.ID)
+		m.ID = msg.ID
+		return m, nil
+
+	case api.ErrMsg:
+		m.CurrentState = err
+		m.err = msg
+		m.statusMessage = fmt.Sprintf("Registration failed: %v", m.err)
+		return m, nil
 
 	case RegistrationErrorMsg:
 		m.CurrentState = err
 		m.err = msg.err
 		m.statusMessage = fmt.Sprintf("Registration failed: %v", m.err)
-		m.CurrentState = selectingMethod
 		return m, nil
 	}
 
-	var cmds []tea.Cmd
-	m.List, cmd = m.List.Update(msg)
-	cmds = append(cmds, cmd)
-	m.Inputs, cmd = m.Inputs.Update(msg)
-	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }
 
 func (m *RegisterModel) View() string {
 	var b strings.Builder
 
-	m.Inputs.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	m.Inputs.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("229"))
+	m.ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	m.ti.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("229"))
 
 	switch m.CurrentState {
 	case selectingMethod:
@@ -149,31 +218,107 @@ func (m *RegisterModel) View() string {
 		b.WriteString("Generating key pair...\n")
 	case enterKeyFile:
 		b.WriteString("Enter path to private key file: \n")
-		b.WriteString(m.Inputs.View() + "\n")
+		b.WriteString(m.ti.View() + "\n")
 		b.WriteString("\nPress Enter to submit, Ctrl+C to quit")
+	case fetchingKeys:
+		b.WriteString("Fetched Keys, Registering user...")
 	case registering:
-		b.WriteString("Registering...\n")
+		b.WriteString(fmt.Sprintf("Registering... usr with PublicKey %v \n", m.statusMessage))
 	case err:
 		b.WriteString(m.statusMessage + "\n\nPress Enter to retry or Ctrl+C to quit")
 	case done:
-		b.WriteString(m.statusMessage + "\n\nPress Ctrl+C to quit")
+		b.WriteString(m.statusMessage + "\n\nPress Enter to Login or Ctrl+C to quit")
 	}
 
-	return lipgloss.NewStyle().Padding(1).Render(b.String())
+	appStyle := styles.AppStyle.
+		Height(m.height - 10).
+		Width(m.width - 2)
+
+	ui := appStyle.Render(
+		lipgloss.Place(
+			m.width,
+			m.height-4,
+			lipgloss.Left,
+			lipgloss.Top,
+			b.String(),
+		),
+	)
+
+	return ui
 }
 
 func (m *RegisterModel) generateKeyCmd() tea.Cmd {
-	return func() tea.Msg {
-		// TODO call function from /crypto/keys.go
-		// in /crypto/keys.go
-		// 1 generate keys
-		// 2 encode them to base64
-		// 3 save them to .config
-		// 4 return the b64 pub key
-		// 5 in register.go call api to register user with the pubkey
-		// if succesfull return msg to main
-		// else return failure msg
-
-		return nil
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return func() tea.Msg {
+			return RegistrationErrorMsg{err: err}
+		}
 	}
+
+	cfg := &config.Config{
+		PublicKey:  base64.StdEncoding.EncodeToString(pub),
+		PrivateKey: base64.StdEncoding.EncodeToString(priv),
+	}
+
+	err = config.Save(cfg)
+	if err != nil {
+		return func() tea.Msg {
+			return RegistrationErrorMsg{err: err}
+		}
+	}
+
+	return func() tea.Msg {
+		return KeysGenerated{
+			PublicKey: cfg.PublicKey,
+		}
+	}
+}
+
+func registerUser() tea.Cmd {
+	cfg, err := config.Load()
+	if err != nil {
+		return func() tea.Msg {
+			return RegistrationErrorMsg{err: err}
+		}
+	}
+
+	registrationCmd := api.RegisterUser(cfg.PublicKey)
+	return registrationCmd
+}
+
+func (m *RegisterModel) LoadKeys(path string) tea.Cmd {
+	rawConfigData, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return func() tea.Msg {
+				return RegistrationErrorMsg{err: fs.ErrNotExist}
+			}
+		}
+		return func() tea.Msg {
+			return RegistrationErrorMsg{err: err}
+		}
+	}
+
+	if len(rawConfigData) == 0 {
+		slog.Error("keys json file is empty")
+		return func() tea.Msg {
+			return RegistrationErrorMsg{err: fmt.Errorf("empty json file")}
+		}
+	}
+
+	var fetchedKeys FetchedKeys
+	if err := json.Unmarshal(rawConfigData, &fetchedKeys); err != nil {
+		slog.Error("error while decoding keys JSON%w", "error", err)
+		return func() tea.Msg {
+			return RegistrationErrorMsg{err: err}
+		}
+	}
+
+	return func() tea.Msg {
+		return fetchedKeys
+	}
+}
+
+func registerWithFetchedKey(pubKey string) tea.Cmd {
+	return api.RegisterUser(pubKey)
 }

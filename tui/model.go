@@ -14,7 +14,7 @@ const (
 	homeView viewState = iota
 	registrationView
 	loginView
-	loggedInView
+	dashbordView
 )
 
 type ResizableModel interface {
@@ -38,6 +38,7 @@ func New() *Model {
 	home := views.NewHomeModel()
 	login := views.NewLoginModel()
 	register := views.NewRegisterModel()
+	dashbord := views.NewDashboardModel()
 
 	return &Model{
 		state: homeView,
@@ -45,6 +46,7 @@ func New() *Model {
 			homeView:         home,
 			registrationView: register,
 			loginView:        login,
+			dashbordView:     dashbord,
 
 			// TODO Add other views
 		},
@@ -68,6 +70,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.views[registrationView].SetSize(m.width, m.height)
 		return m, m.views[registrationView].Init()
 
+	case views.RegistrationSuccessMsg:
+		m.state = loginView
+		config.SaveUserID(msg.ID)
+		return m, m.views[loginView].Init()
+
 	case views.LoginSelectedMsg:
 		m.state = loginView
 		return m, m.views[loginView].Init()
@@ -75,9 +82,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.LoginSuccessMsg:
 		m.token = msg.Token
 		m.user = msg.User
-		m.state = loggedInView
-		return m, m.views[loggedInView].Init()
+		m.state = dashbordView
+		return m, m.views[dashbordView].Init()
+
+	case views.RequestUserIDMsg:
+		userID, err := config.LoadUserID()
+		if err != nil {
+			return m, func() tea.Msg {
+				return err
+			}
+		}
+		return m, func() tea.Msg {
+			return views.UserID{ID: userID}
+		}
+
 	}
+
 	// Always forward the message to the currently active view
 	updatedView, cmd := m.views[m.state].Update(msg)
 
