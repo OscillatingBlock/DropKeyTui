@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const backendURL = "http://localhost:8080"
+const backendURL = "http://localhost:8081"
 
 type ErrMsg error
 
@@ -27,7 +27,7 @@ func RegisterUser(pubKeyB64 string) tea.Cmd {
 			return ErrMsg(fmt.Errorf("failed to marshal request: %w", err))
 		}
 
-		resp, err := httpClient.Post(fmt.Sprintf("%s/users", backendURL), "application/json", bytes.NewBuffer(jsonBody))
+		resp, err := httpClient.Post(fmt.Sprintf("%s/api/users", backendURL), "application/json", bytes.NewBuffer(jsonBody))
 		if err != nil {
 			return ErrMsg(fmt.Errorf("failed to make register User request"))
 		}
@@ -41,11 +41,7 @@ func RegisterUser(pubKeyB64 string) tea.Cmd {
 		if err := json.NewDecoder(resp.Body).Decode(&registerResp); err != nil {
 			return ErrMsg(fmt.Errorf("failed to decode register response: %w", err))
 		}
-		user := User{
-			ID:        registerResp.ID,
-			PublicKey: pubKeyB64,
-		}
-		return user
+		return registerResp
 	}
 }
 
@@ -56,7 +52,7 @@ func AuthenticateUser(reqBody AuthRequest) tea.Cmd {
 			return ErrMsg(fmt.Errorf("failed to marshal request: %w", err))
 		}
 
-		resp, err := httpClient.Post(fmt.Sprintf("%s/users/auth", backendURL), "application/json", bytes.NewBuffer(jsonBody))
+		resp, err := httpClient.Post(fmt.Sprintf("%s/api/users/auth", backendURL), "application/json", bytes.NewBuffer(jsonBody))
 		if err != nil {
 			return ErrMsg(fmt.Errorf("failed to authenticate user userID : %v", reqBody.ID))
 		}
