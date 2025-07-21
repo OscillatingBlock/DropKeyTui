@@ -3,6 +3,8 @@ package views
 import (
 	"strings"
 
+	"Drop-Key-TUI/tui/styles"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -16,101 +18,136 @@ const (
 	tabCount
 )
 
+var (
+	activeTabBorder = lipgloss.Border{
+		Top:         "─",
+		Bottom:      " ",
+		Left:        "│",
+		Right:       "│",
+		TopLeft:     "╭",
+		TopRight:    "╮",
+		BottomLeft:  "┘",
+		BottomRight: "└",
+	}
+
+	tabBorder = lipgloss.Border{
+		Top:         "─",
+		Bottom:      "─",
+		Left:        "│",
+		Right:       "│",
+		TopLeft:     "╭",
+		TopRight:    "╮",
+		BottomLeft:  "┴",
+		BottomRight: "┴",
+	}
+
+	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	tab       = lipgloss.NewStyle().
+			Border(tabBorder, true).
+			BorderForeground(highlight).
+			Padding(0, 1)
+
+	activeTab = tab.Border(activeTabBorder, true)
+
+	tabGap = tab.
+		BorderTop(false).
+		BorderLeft(false).
+		BorderRight(false)
+)
+
 type DashboardModel struct {
-	currentTab    DashboardTab
-	createPaste   PasteFormModel
-	yourPastes    PasteListModel
-	searchPastes  SearchModel
+	activeTab     DashboardTab
+	availableTabs map[DashboardTab]DashboardTabView
 	width, height int
 }
 
-func NewDashboardModel() DashboardModel {
-	return DashboardModel{
-		currentTab:   TabCreate,
-		createPaste:  NewPasteFormModel(),
-		yourPastes:   NewPasteListModel(),
-		searchPastes: NewSearchModel(),
+type DashboardTabView interface {
+	tea.Model
+	Title() string
+}
+
+func NewDashboardModel() *DashboardModel {
+	return &DashboardModel{
+		availableTabs: map[DashboardTab]DashboardTabView{
+			TabCreate:     NewPasteFormModel(),
+			TabYourPastes: NewPasteListModel(),
+			TabSearch:     NewSearchModel(),
+		},
 	}
 }
 
-func (m DashboardModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m DashboardModel) SetSize(width, height int) {
-	m.width = width
+func (m *DashboardModel) SetSize(width, height int) {
 	m.height = height
+	m.width = width
 }
 
-func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
+func (m *DashboardModel) Init() tea.Cmd {
+	return m.availableTabs[m.activeTab].Init()
+}
 
+func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
-			m.currentTab = (m.currentTab + 1) % tabCount
-			return m, nil
-		case "ctrl+c", "esc":
+			m.activeTab = (m.activeTab + 1) % tabCount
+			return m, m.availableTabs[m.activeTab].Init()
+
+		case "shift+tab":
+			m.activeTab = (m.activeTab - 1 + tabCount) % tabCount
+			return m, m.availableTabs[m.activeTab].Init()
+
+		case "ctrl+c":
 			return m, tea.Quit
 		}
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
 	}
-
-	// Forward to active tab
-	switch m.currentTab {
-	case TabCreate:
-		var cmd tea.Cmd
-		m.createPaste, cmd = m.createPaste.Update(msg)
-		return m, cmd
-	case TabYourPastes:
-		var cmd tea.Cmd
-		m.yourPastes, cmd = m.yourPastes.Update(msg)
-		return m, cmd
-	case TabSearch:
-		var cmd tea.Cmd
-		m.searchPastes, cmd = m.searchPastes.Update(msg)
-		return m, cmd
-	}
-
-	return m, nil
+	tab := m.availableTabs[m.activeTab]
+	updatedTab, cmd := tab.Update(msg)
+	m.availableTabs[m.activeTab] = updatedTab.(DashboardTabView)
+	return m, cmd
 }
 
-func (m DashboardModel) View() string {
-	var b strings.Builder
+func (m *DashboardModel) View() string {
+	var titles []string
+	for i := DashboardTab(0); i < tabCount; i++ {
+		style := tab
+		if i == m.activeTab {
+			style = activeTab
+		}
+		titles = append(titles, style.Render(m.availableTabs[i].Title()))
+	}
 
-	tabBar := lipgloss.JoinHorizontal(lipgloss.Top,
-		renderTab("Create", m.currentTab == TabCreate),
-		renderTab("Your Pastes", m.currentTab == TabYourPastes),
-		renderTab("Search", m.currentTab == TabSearch),
+	rawTabs := lipgloss.JoinHorizontal(lipgloss.Top, titles...)
+	rawTabsWidth := lipgloss.Width(rawTabs)
+	gapSize := max(0, m.width-rawTabsWidth-15)
+	gap := tabGap.Render(strings.Repeat(" ", gapSize))
+
+	row := lipgloss.JoinHorizontal(lipgloss.Bottom, rawTabs, gap)
+
+	var b strings.Builder
+	b.WriteString(row)
+	b.WriteString("\n")
+	b.WriteString(m.availableTabs[m.activeTab].View())
+
+	appStyle := styles.AppStyle.
+		Height(m.height - 4).Width(m.width - 4)
+
+	ui := appStyle.Render(
+		lipgloss.Place(
+			m.width-4,
+			m.height-4,
+			lipgloss.Left,
+			lipgloss.Top,
+			b.String(),
+		),
 	)
 
-	b.WriteString(tabBar + "\n\n")
-
-	// Render current tab's view
-	switch m.currentTab {
-	case TabCreate:
-		b.WriteString(m.createPaste.View())
-	case TabYourPastes:
-		b.WriteString(m.yourPastes.View())
-	case TabSearch:
-		b.WriteString(m.searchPastes.View())
-	}
-
-	return b.String()
+	return ui
 }
 
-func renderTab(name string, active bool) string {
-	style := lipgloss.NewStyle().
-		Padding(0, 2).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("63"))
-
-	if active {
-		style = style.Bold(true).Foreground(lipgloss.Color("205")) // shiny pink
+func max(a, b int) int {
+	if a > b {
+		return a
 	}
-
-	return style.Render(name)
+	return b
 }

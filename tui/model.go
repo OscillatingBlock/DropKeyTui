@@ -1,11 +1,14 @@
 package tui
 
 import (
+	"os"
+
 	"Drop-Key-TUI/api"
 	"Drop-Key-TUI/config"
 	"Drop-Key-TUI/tui/views"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/term"
 )
 
 type viewState int
@@ -54,10 +57,13 @@ func New() *Model {
 }
 
 func (m *Model) Init() tea.Cmd {
+	physicalWidth, physicalHeight, _ := term.GetSize((os.Stdout.Fd()))
+	m.width = physicalWidth
+	m.height = physicalHeight
+	m.views[m.state].SetSize(physicalWidth, physicalHeight)
 	return m.views[m.state].Init()
 }
 
-// TODO
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -68,22 +74,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.RegisterSelectedMsg:
 		m.state = registrationView
 		m.views[registrationView].SetSize(m.width, m.height)
+		physicalWidth, physicalHeight, _ := term.GetSize((os.Stdout.Fd()))
+		m.views[m.state].SetSize(physicalWidth, physicalHeight)
 		return m, m.views[registrationView].Init()
 
 	case views.RegistrationSuccessMsg:
 		m.state = loginView
+		physicalWidth, physicalHeight, _ := term.GetSize((os.Stdout.Fd()))
+		m.views[m.state].SetSize(physicalWidth, physicalHeight)
 		config.SaveUserID(msg.ID)
 		return m, m.views[loginView].Init()
 
 	case views.LoginSelectedMsg:
 		m.state = loginView
+		physicalWidth, physicalHeight, _ := term.GetSize((os.Stdout.Fd()))
+		m.views[m.state].SetSize(physicalWidth, physicalHeight)
 		return m, m.views[loginView].Init()
 
 	case views.LoginSuccessMsg:
 		m.token = msg.Token
 		m.user = msg.User
 		m.state = dashbordView
-		return m, m.views[dashbordView].Init()
+		m.views[m.state].SetSize(m.width, m.height)
+		return m, tea.Batch(
+			m.views[dashbordView].Init(),
+			func() tea.Msg {
+				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+			},
+		)
 
 	case views.RequestUserIDMsg:
 		userID, err := config.LoadUserID()
