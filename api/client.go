@@ -72,14 +72,22 @@ func AuthenticateUser(reqBody AuthRequest) tea.Cmd {
 	}
 }
 
-func CreatePaste(reqBody PasteRequest) tea.Cmd {
+func CreatePaste(reqBody PasteRequest, token string) tea.Cmd {
 	return func() tea.Msg {
 		jsonBody, err := json.Marshal(reqBody)
 		if err != nil {
 			return ErrMsg(fmt.Errorf("failed to marshal request: %w", err))
 		}
 
-		resp, err := httpClient.Post(fmt.Sprintf("%s/api/pastes", backendURL), "application/json", bytes.NewBuffer(jsonBody))
+		req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/pastes", backendURL), bytes.NewBuffer(jsonBody))
+		if err != nil {
+			return ErrMsg(fmt.Errorf("failed to generate create paste request"))
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return ErrMsg(fmt.Errorf("failed to make create paste request"))
 		}
