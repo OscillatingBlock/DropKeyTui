@@ -29,13 +29,15 @@ func NewPasteFormModel() *PasteFormModel {
 	ta.Focus()
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 0
-	ta.SetWidth(physicalWidth - 8)
+	ta.SetWidth(physicalWidth - 18)
 	ta.SetHeight(physicalHeight - 10)
 	ta.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
+	ta.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
 	vp := viewport.New(physicalWidth-18, physicalHeight-10)
 	vp.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
+		BorderForeground(lipgloss.Color("#F25D94")).
 		PaddingRight(2)
 
 	return &PasteFormModel{
@@ -116,7 +118,9 @@ func (m *PasteFormModel) View() string {
 		out += m.textarea.View()
 	}
 
-	out += "\n\nPress Ctrl+S to submit your paste"
+	out += lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Render("\n\nPress Ctrl+S to submit your paste, esc to change text mode, alt+v to toggle preview")
 	return out
 }
 

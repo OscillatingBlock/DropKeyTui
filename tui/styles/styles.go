@@ -6,7 +6,7 @@ var (
 	AppStyle = lipgloss.NewStyle().
 			Padding(1, 2).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("63"))
+			BorderForeground(lipgloss.Color("#7D56F4"))
 
 	HeadingStyle = lipgloss.NewStyle().
 			Bold(true).
