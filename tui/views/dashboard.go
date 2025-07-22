@@ -58,12 +58,17 @@ var (
 type DashboardModel struct {
 	activeTab     DashboardTab
 	availableTabs map[DashboardTab]DashboardTabView
+	token         string
 	width, height int
 }
 
 type DashboardTabView interface {
 	tea.Model
 	Title() string
+}
+
+func (m *DashboardModel) SetToken(token string) {
+	m.token = token
 }
 
 func NewDashboardModel() *DashboardModel {
@@ -99,6 +104,11 @@ func (m *DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+c":
 			return m, tea.Quit
+		}
+
+	case requestToken:
+		return m, func() tea.Msg {
+			return responseToken{token: m.token}
 		}
 	}
 	tab := m.availableTabs[m.activeTab]

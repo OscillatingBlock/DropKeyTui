@@ -23,7 +23,10 @@ const (
 type ResizableModel interface {
 	tea.Model
 	SetSize(width, height int)
+	SetToken(token string)
 }
+
+type MsgSetToken struct{}
 
 type Model struct {
 	state  viewState
@@ -33,8 +36,7 @@ type Model struct {
 	token  string
 	config *config.Config
 	user   api.User
-
-	views map[viewState]ResizableModel
+	views  map[viewState]ResizableModel
 }
 
 func New() *Model {
@@ -71,6 +73,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.views[m.state].SetSize(msg.Width, msg.Height)
 
+	case MsgSetToken:
+		m.views[dashbordView].SetToken(m.token)
+
 	case views.RegisterSelectedMsg:
 		m.state = registrationView
 		m.views[registrationView].SetSize(m.width, m.height)
@@ -100,6 +105,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.views[dashbordView].Init(),
 			func() tea.Msg {
 				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+			},
+			func() tea.Msg {
+				return MsgSetToken{}
 			},
 		)
 

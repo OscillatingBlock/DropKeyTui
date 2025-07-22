@@ -30,6 +30,7 @@ type Model struct {
 	width         int
 	height        int
 	err           error
+	token         string
 }
 
 type LoginSuccessMsg struct {
@@ -122,6 +123,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.Spinner, cmd = m.Spinner.Update(msg)
 	return m, cmd
+}
+
+func (m *Model) SetToken(token string) {
+	m.token = token
 }
 
 func (m *Model) View() string {

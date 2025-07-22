@@ -40,6 +40,7 @@ type RegisterModel struct {
 	height        int
 	user          api.User
 	ID            string
+	token         string
 }
 
 type RegistrationSuccessMsg struct {
@@ -322,3 +323,5 @@ func (m *RegisterModel) LoadKeys(path string) tea.Cmd {
 func registerWithFetchedKey(pubKey string) tea.Cmd {
 	return api.RegisterUser(pubKey)
 }
+
+func (m *RegisterModel) SetToken(token string) {}

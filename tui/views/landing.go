@@ -16,6 +16,7 @@ type HomeModel struct {
 	height   int
 	width    int
 	err      error
+	token    string
 }
 
 type (
@@ -41,6 +42,10 @@ func NewHomeModel() *HomeModel {
 		choices: []string{"Register", "Login"},
 		cursor:  0,
 	}
+}
+
+func (m *HomeModel) SetToken(token string) {
+	m.token = token
 }
 
 func (m *HomeModel) Init() tea.Cmd {
