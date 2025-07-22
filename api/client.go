@@ -71,3 +71,30 @@ func AuthenticateUser(reqBody AuthRequest) tea.Cmd {
 		return authResponse
 	}
 }
+
+func CreatePaste(reqBody PasteRequest) tea.Cmd {
+	return func() tea.Msg {
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			return ErrMsg(fmt.Errorf("failed to marshal request: %w", err))
+		}
+
+		resp, err := httpClient.Post(fmt.Sprintf("%s/api/pastes", backendURL), "application/json", bytes.NewBuffer(jsonBody))
+		if err != nil {
+			return ErrMsg(fmt.Errorf("failed to make create paste request"))
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			return ErrMsg(fmt.Errorf("create paste request failed with status %d: %s", resp.StatusCode, string(bodyBytes)))
+		}
+
+		var pasteResponse CreatePasteResponse
+		if err := json.NewDecoder(resp.Body).Decode(&pasteResponse); err != nil {
+			return ErrMsg(fmt.Errorf("failed to decode create paste response: %w", err))
+		}
+
+		return pasteResponse
+	}
+}
