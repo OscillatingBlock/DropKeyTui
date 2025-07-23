@@ -9,6 +9,7 @@ import (
 	"Drop-Key-TUI/api"
 	"Drop-Key-TUI/config"
 	"Drop-Key-TUI/crypt"
+	"Drop-Key-TUI/tui/styles"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/lipgloss"
@@ -20,21 +21,37 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type formState string
+
+const (
+	decidingTitle   formState = "deciding title"
+	writingPaste    formState = "writing paste"
+	selectingExpiry formState = "selecting expiry"
+	formErr         formState = "form error"
+	pastecreated    formState = "paste created successfully"
+)
+
 type PasteFormModel struct {
-	textarea        textarea.Model
-	submit          bool
-	viewport        viewport.Model
+	currentState formState
+	textarea     textarea.Model
+	titleBar     textarea.Model
+	viewport     viewport.Model
+
 	viewportActive  bool
-	height          int
-	width           int
 	selectingExpiry bool
-	expiryDays      int
-	pasteID         string
-	pasteUrl        string
 	pasteCreated    bool
-	token           string
-	err             bool
-	ErrMsg          string
+
+	height     int
+	width      int
+	expiryDays int
+
+	pasteID  string
+	pasteUrl string
+	token    string
+	title    string
+
+	err    bool
+	ErrMsg string
 }
 
 type (
@@ -56,18 +73,26 @@ func NewPasteFormModel() *PasteFormModel {
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 0
 	ta.SetWidth(physicalWidth - 18)
-	ta.SetHeight(physicalHeight - 10)
+	ta.SetHeight(physicalHeight - 12)
 	ta.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
 	ta.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
 	vp := viewport.New(physicalWidth-18, physicalHeight-10)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#F25D94")).
-		PaddingRight(2)
+	vp.Style = styles.VpStyle
+
+	titleBar := textarea.New()
+	titleBar.Focus()
+	titleBar.ShowLineNumbers = false
+	titleBar.CharLimit = 40
+	titleBar.SetWidth(physicalWidth - 28)
+	titleBar.SetHeight(physicalHeight - 30)
+	titleBar.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	titleBar.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
 
 	return &PasteFormModel{
+		currentState: decidingTitle,
 		textarea:     ta,
+		titleBar:     titleBar,
 		viewport:     vp,
 		pasteCreated: false,
 	}
@@ -97,7 +122,7 @@ func (m *PasteFormModel) UpdateViewportContent() {
 }
 
 func (m *PasteFormModel) Init() tea.Cmd {
-	return tea.Batch(m.textarea.Cursor.BlinkCmd(),
+	return tea.Batch(m.titleBar.Cursor.BlinkCmd(),
 		func() tea.Msg {
 			return requestToken{}
 		},
@@ -109,28 +134,38 @@ func (m *PasteFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.pasteCreated {
-			m.pasteCreated = false
+		if m.currentState == pastecreated {
+			m.currentState = writingPaste
 			return m, nil
 		}
-		if m.err {
-			m.err = false
+		if m.currentState == formErr {
+			m.currentState = writingPaste
 			return m, nil
 		}
 
 		switch msg.String() {
+		case "enter":
+			if m.currentState == decidingTitle {
+				m.title = m.titleBar.Value()
+				m.titleBar.SetValue("")
+				m.currentState = writingPaste
+				m.textarea.SetValue("")
+				return m, nil
+			}
 		case "esc":
-			if m.err {
+			if m.currentState == formErr {
 				m.err = false
 				return m, nil
 			}
 
-			if m.textarea.Focused() {
-				m.textarea.Blur()
+			if m.currentState == writingPaste {
+				if m.textarea.Focused() {
+					m.textarea.Blur()
+					return m, nil
+				}
+				m.textarea.Focus()
 				return m, nil
 			}
-			m.textarea.Focus()
-			return m, nil
 
 		case "alt+v":
 			m.viewportActive = !m.viewportActive
@@ -143,43 +178,51 @@ func (m *PasteFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "ctrl+s":
-			if !m.selectingExpiry {
+			if m.currentState == writingPaste {
 				m.textarea.Blur()
-				m.selectingExpiry = true
+				m.currentState = selectingExpiry
 				return m, nil
 			}
 
 		case "1", "2", "3", "4", "5", "6", "7":
-			if m.selectingExpiry {
+			if m.currentState == selectingExpiry {
 				m.expiryDays = int(msg.Runes[0]-'0') * 86400
-				m.selectingExpiry = false
-				m.submit = true
 				paste := m.textarea.Value()
 				return m, m.CreatePaste(paste, m.expiryDays, m.token)
 			}
 
 		case "alt+c":
-			m.textarea.SetValue("")
-			return m, nil
+			if m.currentState == writingPaste {
+				m.textarea.SetValue("")
+				return m, nil
+			}
+
+		case "alt+n":
+			if m.currentState == writingPaste {
+				m.currentState = decidingTitle
+				m.textarea.SetValue("")
+				m.titleBar.SetValue("")
+				return m, nil
+			}
 		}
 
 	case api.CreatePasteResponse:
-
-		m.textarea.SetValue("")
 		m.pasteUrl = msg.URL
 		m.pasteID = msg.ID
-		m.pasteCreated = true
+		m.currentState = pastecreated
 		return m, nil
 
 	case api.ErrMsg:
-		m.err = true
+		m.currentState = formErr
 		m.ErrMsg = msg.Error()
 		return m, nil
 
 	case responseToken:
 		m.token = msg.token
 	}
-
+	if m.currentState == decidingTitle {
+		m.titleBar, cmd = m.titleBar.Update(msg)
+	}
 	if !m.viewportActive {
 		m.textarea, cmd = m.textarea.Update(msg)
 	}
@@ -190,65 +233,46 @@ func (m *PasteFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *PasteFormModel) View() string {
 	out := "\n"
 
-	if m.viewportActive {
-		m.UpdateViewportContent()
-		out += m.viewport.View()
-	} else {
-		out += m.textarea.View()
-	}
+	switch m.currentState {
 
-	if m.pasteCreated {
-		headerStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("42")).
-			Background(lipgloss.Color("235")).
-			Padding(0, 1).
-			Bold(true)
+	case decidingTitle:
+		out += styles.HeaderStyle.Render("📝 Enter a title for your paste:")
+		out += "\n"
+		out += m.titleBar.View()
 
+	case writingPaste:
+		if m.viewportActive {
+			m.UpdateViewportContent()
+			out += m.viewport.View()
+		} else {
+			out += "\n"
+			out += m.textarea.View()
+		}
+		out += "\n" + m.renderHelp()
+
+	case selectingExpiry:
+		out += styles.HeaderStyle.Render("⏳ Select expiry (1–7 days):\n")
+		out += styles.HelpStyle.Render("Use number keys to choose expiry")
+
+	case pastecreated:
 		urlStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("81")).
 			Underline(true).
 			MarginTop(1)
 
-		helpStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")).
-			Italic(true).
-			MarginTop(1)
-
-		res := headerStyle.Render("✔ Paste created successfully")
+		res := styles.SuccessHeaderStyle.Render("✔ Paste created successfully")
 		url := urlStyle.Render(fmt.Sprintf("🔗 Paste URL: %v", m.pasteUrl))
-		help := helpStyle.Render("Press any key to continue...")
+		help := styles.HelpStyle.Render("Press any key to continue...")
 
 		out += lipgloss.JoinVertical(lipgloss.Left, res, url, help)
-		return out
-	}
 
-	if m.err {
-		errStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Background(lipgloss.Color("234")).
-			Padding(0, 1).
-			Bold(true).
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("124")).
-			MarginTop(1)
-		helpStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")).
-			Italic(true).
-			MarginTop(1)
-
-		err := errStyle.Render("✘ " + m.ErrMsg)
-		help := helpStyle.Render("Press any key to continue...")
-
+	case formErr:
+		err := styles.ErrStyle.Render("✘ " + m.ErrMsg)
+		help := styles.HelpStyle.Render("Press any key to continue...")
 		out += lipgloss.JoinVertical(lipgloss.Left, err, help)
 
-		return out
-	}
-
-	out += "\n" + m.renderHelp()
-	if m.selectingExpiry {
-		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")).
-			Render("\nChoose expiry for paste (1–7 days):")
+	default:
+		out += styles.ErrStyle.Render("Unknown state")
 	}
 
 	return out
@@ -298,6 +322,6 @@ func (m *PasteFormModel) renderHelp() string {
 		MarginTop(1)
 
 	return helpStyle.Render(
-		"Ctrl+S to submit | Esc to switch mode | Alt+V preview | Alt+C clear",
+		"Ctrl+S to submit | Esc to switch mode | Alt+V preview | Alt+C clear | Alt+N new paste",
 	)
 }
