@@ -5,14 +5,13 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"io"
 )
 
-// EncryptPaste encrypts the given text and returns a base64-encoded ciphertext.
-func EncryptPaste(text string) (string, error) {
-	// 32 bytes = AES-256
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
+func EncryptPaste(id string, text []byte) (string, error) {
+	key, err := GenerateKey(id)
+	if err != nil {
 		return "", err
 	}
 
@@ -31,6 +30,46 @@ func EncryptPaste(text string) (string, error) {
 		return "", err
 	}
 
-	ciphertext := gcm.Seal(nonce, nonce, []byte(text), nil)
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
+	ciphertext := gcm.Seal(nonce, nonce, text, nil)
+	return string(ciphertext), nil
+}
+
+func DecryptPaste(id, ciphertextB64 string) (string, error) {
+	key, err := GetKey(id)
+	if err != nil {
+		return "", err
+	}
+	if len(key) != 32 {
+		return "", fmt.Errorf("invalid key length: must be 32 bytes for AES-256")
+	}
+
+	ciphertext, err := base64.StdEncoding.DecodeString(ciphertextB64)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+
+	nonce := ciphertext[:nonceSize]
+	ciphertext = ciphertext[nonceSize:]
+
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
 }
