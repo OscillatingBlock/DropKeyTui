@@ -80,11 +80,11 @@ func NewPasteFormModel() *PasteFormModel {
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 0
 	ta.SetWidth(physicalWidth - 18)
-	ta.SetHeight(physicalHeight - 12)
+	ta.SetHeight(physicalHeight - 14)
 	ta.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
 	ta.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("000"))
 
-	vp := viewport.New(physicalWidth-18, physicalHeight-8)
+	vp := viewport.New(physicalWidth-18, physicalHeight-12)
 	vp.Style = styles.VpStyle
 
 	titleBar := textarea.New()
