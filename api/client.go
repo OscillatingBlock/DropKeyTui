@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"time"
 
+	"Drop-Key-TUI/crypt"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -26,7 +28,12 @@ type PasteCreatedMsg struct {
 }
 
 type PasteListFetchedMsg struct {
-	List []Paste
+	List   []Paste
+	Titles []string
+}
+
+type PasteFetchedMsg struct {
+	Paste
 }
 
 func RegisterUser(pubKeyB64 string) tea.Cmd {
@@ -143,8 +150,63 @@ func GetPastes(publicKey string) tea.Cmd {
 			return ErrMsg(fmt.Errorf("failed to decode response: %w", err))
 		}
 
+		titles := make([]string, len(pastes))
+		for i := range pastes {
+			plain, err := crypt.DecryptPaste(pastes[i].ID, pastes[i].Ciphertext)
+			if err != nil {
+				titles[i] = "Error decrypting"
+				continue
+			}
+
+			var data struct {
+				Title string `json:"title"`
+			}
+			if err := json.Unmarshal([]byte(plain), &data); err != nil {
+				titles[i] = "Invalid JSON"
+				continue
+			}
+			titles[i] = data.Title
+		}
+
 		return PasteListFetchedMsg{
-			List: pastes,
+			List:   pastes,
+			Titles: titles,
+		}
+	}
+}
+
+func GetPaste(id string) tea.Cmd {
+	return func() tea.Msg {
+		req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/pastes/%s", backendURL, id), nil)
+		if err != nil {
+			return ErrMsg(fmt.Errorf("failed to create request: %w", err))
+		}
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return ErrMsg(fmt.Errorf("failed to make request: %w", err))
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode == 400 {
+				return ErrMsg(fmt.Errorf("invalid paste ID"))
+			} else if resp.StatusCode == 404 {
+				return ErrMsg(fmt.Errorf("Paste not found"))
+			} else if resp.StatusCode == 410 {
+				return ErrMsg(fmt.Errorf("Paste has expired"))
+			} else {
+				return ErrMsg(fmt.Errorf(("Internal server error")))
+			}
+		}
+
+		var paste Paste
+		err = json.NewDecoder(resp.Body).Decode(&paste)
+		if err != nil {
+			return ErrMsg(fmt.Errorf("failed to decode response: %w", err))
+		}
+		return PasteFetchedMsg{
+			paste,
 		}
 	}
 }
