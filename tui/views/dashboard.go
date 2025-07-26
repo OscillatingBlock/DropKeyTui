@@ -72,16 +72,10 @@ func (m *DashboardModel) SetToken(token string) {
 }
 
 func NewDashboardModel() *DashboardModel {
-	pastes := []Paste{
-		{ID: "1", title: "Login Key", Desc: "A secure login paste"},
-		{ID: "2", title: "Server Config", Desc: "NGINX TLS setup"},
-		{ID: "3", title: "Go Tips", Desc: "Tips for Go concurrency"},
-	}
-
 	return &DashboardModel{
 		availableTabs: map[DashboardTab]DashboardTabView{
 			TabCreate:     NewPasteFormModel(),
-			TabYourPastes: NewPasteListModel(pastes),
+			TabYourPastes: NewPasteListModel(),
 			TabSearch:     NewSearchModel(),
 		},
 	}

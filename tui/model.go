@@ -52,8 +52,6 @@ func New() *Model {
 			registrationView: register,
 			loginView:        login,
 			dashbordView:     dashbord,
-
-			// TODO Add other views
 		},
 	}
 }
