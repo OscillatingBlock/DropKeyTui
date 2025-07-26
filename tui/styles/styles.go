@@ -64,3 +64,22 @@ var (
 		BorderForeground(lipgloss.Color("#F25D94")).
 		PaddingRight(2)
 )
+
+var SubtleStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("245"))
+
+var MetaStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("39")).
+	Bold(true)
+
+var FaintStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("241")).
+	Italic(true)
+
+var SpinnerStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("33")).
+	Bold(true)
+
+var ErrorStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("9")).
+	Bold(true)
