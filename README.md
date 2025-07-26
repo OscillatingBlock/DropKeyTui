@@ -80,14 +80,14 @@ DropKeyTui connects to the **DropKey backend**, a RESTful Go-based API for stori
 
 Below are example interfaces of DropKeyTui:
 
-- **Search Interface**: Enter paste IDs to retrieve encrypted notes.
-  ```
-  [Placeholder: Screenshot of search view showing ID input]
-  ```
-- **Decrypted Note View**: Display of a decrypted note with title and body.
-  ```
-  [Placeholder: Screenshot of note view with formatted content]
-  ```
+- **Landing page**:
+- 
+  <img width="1894" height="957" alt="image" src="https://github.com/user-attachments/assets/347764df-c159-4168-9695-ad4bd7d8d86c" />
+
+- **Syntax Highlight**: Syntax highlighting while viewing notes.
+- 
+ <img width="1883" height="957" alt="image_2025-07-27_00-37-07" src="https://github.com/user-attachments/assets/ec7bedae-079a-449c-ad98-67d5de540911" />
+
 
 ---
 
