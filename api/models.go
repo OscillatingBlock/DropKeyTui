@@ -36,7 +36,7 @@ type Paste struct {
 	Ciphertext string    `json:"ciphertext"`
 	Signature  string    `json:"signature"`
 	PublicKey  string    `json:"public_key"`
-	ExpiresAt  time.Time `json:"expires_in"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 type PasteRequest struct {
