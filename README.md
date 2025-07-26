@@ -1,6 +1,6 @@
 # DropKeyTui
 
-**DropKeyTui** is a terminal-based TUI application for securely fetching, decrypting, and viewing end-to-end encrypted notes from a DropKey backend. Built with Go and BubbleTea, it leverages AES encryption and Ed25519 digital signatures for robust security and data integrity.
+**DropKeyTui** is a terminal-based TUI paste bin for securely fetching, decrypting, and viewing end-to-end encrypted notes from a DropKey backend. Built with Go and BubbleTea, it leverages AES encryption and Ed25519 digital signatures for robust security and data integrity.
 
 ---
 
