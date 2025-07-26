@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/x/term"
 )
 
 type SearchState string
@@ -47,13 +49,14 @@ type SearchModel struct {
 }
 
 func NewSearchModel() *SearchModel {
+	physicalWidth, physicalHeight, _ := term.GetSize((os.Stdout.Fd()))
 	ti := textinput.New()
 	ti.Placeholder = "Enter paste URL"
 	ti.Focus()
 	ti.CharLimit = 100
 	ti.Width = 50
 
-	vp := viewport.New(80, 20)
+	vp := viewport.New(physicalWidth-22, physicalHeight-12)
 	vp.Style = styles.VpStyle
 	vp.SetContent("")
 
@@ -184,6 +187,7 @@ func (m *SearchModel) UpdateViewportContent(paste string) {
 }
 
 func (m *SearchModel) View() string {
+	_, physicalHeight, _ := term.GetSize((os.Stdout.Fd()))
 	if m.laoding {
 		return styles.SpinnerStyle.Render("Decrypting paste...") + "\n"
 	}
@@ -203,7 +207,7 @@ func (m *SearchModel) View() string {
 	switch m.state {
 	case enterID:
 		return "\n" + styles.HeaderStyle.Render("🔎 Search Paste by ID") + "\n\n" + m.ti.View() +
-			styles.HelpStyle.PaddingTop(m.vp.Height-2).Render("Ctrl+C to quit")
+			styles.HelpStyle.PaddingTop(physicalHeight-14).Render("Ctrl+C to quit")
 
 	case StateFetched:
 		info := fmt.Sprintf(

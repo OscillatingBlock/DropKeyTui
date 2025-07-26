@@ -82,9 +82,9 @@ func NewPasteFormModel() *PasteFormModel {
 	ta.SetWidth(physicalWidth - 18)
 	ta.SetHeight(physicalHeight - 12)
 	ta.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
-	ta.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	ta.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("000"))
 
-	vp := viewport.New(physicalWidth-18, physicalHeight-10)
+	vp := viewport.New(physicalWidth-18, physicalHeight-8)
 	vp.Style = styles.VpStyle
 
 	titleBar := textarea.New()
@@ -92,7 +92,7 @@ func NewPasteFormModel() *PasteFormModel {
 	titleBar.ShowLineNumbers = false
 	titleBar.CharLimit = 40
 	titleBar.SetWidth(physicalWidth - 28)
-	titleBar.SetHeight(physicalHeight - 30)
+	titleBar.SetHeight(2)
 	titleBar.BlurredStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	titleBar.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
 
@@ -249,7 +249,7 @@ func (m *PasteFormModel) View() string {
 		out += styles.HeaderStyle.Render("📝 Enter a title for your paste:")
 		out += "\n"
 		out += m.titleBar.View()
-		out += styles.HelpStyle.PaddingTop(physicalHeight - 12).Render("tab to switch tabs | Ctrl+C to quit")
+		out += styles.HelpStyle.PaddingTop(physicalHeight - 14).Render("tab to switch tabs | Ctrl+C to quit")
 
 	case writingPaste:
 		if m.viewportActive {
