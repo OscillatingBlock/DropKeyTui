@@ -70,8 +70,12 @@ func NewPasteListModel() *PasteListModel {
 
 	s := spinner.New()
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	config, _ := config.Load()
-	publicKey := config.PublicKey
+	cfg, err := config.Load()
+	if err != nil {
+    fmt.Println(err)
+		cfg = &config.Config{}
+	}
+	publicKey := cfg.PublicKey
 
 	vp := viewport.New(physicalWidth-18, physicalHeight-10)
 	vp.Style = styles.VpStyle
@@ -87,8 +91,16 @@ func NewPasteListModel() *PasteListModel {
 }
 
 func (m *PasteListModel) Init() tea.Cmd {
-	return tea.Batch(api.GetPastes(m.publicKey), m.spinner.Tick)
+    cfg, err := config.Load()
+    if err != nil {
+        fmt.Println("Failed to load config:", err)
+        return nil
+    }
+
+    m.publicKey = cfg.PublicKey
+    return tea.Batch(api.GetPastes(m.publicKey), m.spinner.Tick)
 }
+
 
 func (m *PasteListModel) UpdateViewportContent(paste string) {
 	const glamourGutter = 2
@@ -174,10 +186,17 @@ func (m *PasteListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentState = decryptingPaste
 					return m, decryptPasteCmd(i)
 				}
-			case "ctrl+r":
-				return m, api.GetPastes(m.publicKey)
-			}
+      case "ctrl+r":
+          cfg, err := config.Load()
+          if err != nil {
+              fmt.Println("Failed to reload config:", err)
+              return m, nil
+          }
 
+          m.publicKey = cfg.PublicKey
+          return m, api.GetPastes(m.publicKey)
+
+        }
 		case api.PasteListFetchedMsg:
 			m.pastes = msg.List
 
